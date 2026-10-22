@@ -61,6 +61,9 @@ button { font-family: var(--display); font-weight: 700; font-size: 1.15rem; text
 button:focus-visible, a:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
 button[disabled] { opacity: .6; cursor: wait; }
 .ghost { background: transparent; color: var(--muted); border: 1.5px solid var(--line); font-size: .95rem; padding: 8px 14px; }
+.saved { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 8px; background: var(--neutral-soft); }
+.saved p { margin: 0; font-size: .95rem; }
+.saved b { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; letter-spacing: .08em; }
 .hint { font-size: .88rem; color: var(--muted); margin: 0; }
 .err { color: var(--orange); font-weight: 600; font-size: .92rem; margin: 0; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
@@ -139,6 +142,10 @@ td.n, th.n { text-align: right; }
 
 <main class="wrap">
   <form class="gate" id="gate" autocomplete="off">
+    <div class="saved" id="saved" hidden>
+      <p>Este celular tiene guardado el código <b id="saved-code"></b>.</p>
+      <div class="row"><button type="button" id="saved-open">Abrir ese avance</button><button type="button" class="ghost" id="saved-other">Usar otro código</button></div>
+    </div>
     <label for="code">Tu código personal</label>
     <div class="row">
       <input id="code" name="code" inputmode="text" maxlength="11" placeholder="ABCD-2345" aria-describedby="hint" spellcheck="false">
@@ -280,9 +287,30 @@ async function unlock(raw, quiet) {
 
 $("gate").addEventListener("submit", (ev) => { ev.preventDefault(); unlock($("code").value, false); });
 showExample();
-let start = /^[A-Za-z0-9]{8}$/.test(location.hash.slice(1)) ? location.hash.slice(1) : "";
-if (!start) { try { start = localStorage.getItem("ma-code") || ""; } catch (e) {} }
-if (start) unlock(start, true);
+const fromHash = /^[A-Za-z0-9]{8}$/.test(location.hash.slice(1)) ? location.hash.slice(1) : "";
+let saved = "";
+try { saved = localStorage.getItem("ma-code") || ""; } catch (e) {}
+const hideSaved = () => { $("saved").hidden = true; };
+$("saved-open").addEventListener("click", () => { hideSaved(); unlock(saved, false); });
+$("saved-other").addEventListener("click", () => {
+  try { localStorage.removeItem("ma-code"); } catch (e) {}
+  hideSaved(); $("code").value = ""; showExample(); $("code").focus();
+});
+$("gate").addEventListener("submit", hideSaved);
+if (fromHash) {
+  unlock(fromHash, true);
+  try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+} else if (saved) {
+  $("saved-code").textContent = saved.slice(0, 4) + "-••••";
+  $("saved").hidden = false;
+}
+window.addEventListener("hashchange", () => {
+  const h = location.hash.slice(1);
+  if (/^[A-Za-z0-9]{8}$/.test(h)) {
+    hideSaved(); unlock(h, true);
+    try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+  }
+});
 </script>
 
 </body>
